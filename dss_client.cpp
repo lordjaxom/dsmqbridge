@@ -61,7 +61,7 @@ public:
             }
 
             for (;;) {
-                this->request( "event/get", "subscriptionID=1", true, yield );
+                this->request( "event/get", "subscriptionID=1&timeout=30000", true, yield );
             }
         } );
     }

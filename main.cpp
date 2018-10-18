@@ -48,7 +48,9 @@ void run( int argc, char* const argv[] )
         asio::io_context context;
         ssl::context sslContext { ssl::context::sslv23_client };
 
-        dss::Client dssClient { context, sslContext, { "192.168.178.29", "8080", "7b1c4f70d6c5113c3753f6a67d4a228cf65c64ace02af0f9e93aa6e58dbc5438" } };
+        dss::Client dssClient { context, sslContext, props.at( "dSS" ) };
+        dssClient.subscribe( "callScene" );
+        dssClient.eventLoop();
 
         context.run();
     } catch ( exception const& e ) {

@@ -22,7 +22,7 @@ static char const* cmdLineMapShortToLong( int shortopt )
 }
 
 CommandLine::CommandLine( char* const *argv, int argc )
-	: propertiesFile_ { "repwatchd.json" }
+	: propertiesFile_ { "dsmqbridge.json" }
 {
 	struct option options[] = {
 		{ nullptr, no_argument,       nullptr, 'h' },
