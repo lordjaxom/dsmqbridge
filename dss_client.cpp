@@ -2,6 +2,7 @@
 #include <sstream>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/io_context.hpp>
@@ -47,10 +48,40 @@ public:
             , sslContext_ { sslContext }
             , endpoint_( move( endpoint ) ) {}
 
+    void subscribe( string&& event )
+    {
+        events_.push_back( move( event ) );
+    }
+
+    void eventLoop()
+    {
+        asio::spawn( [this]( auto yield ) {
+            for ( auto const &event : events_ ) {
+                this->request( "event/subscribe", "subscriptionID=1&name=" + event, true, yield );
+            }
+
+            for (;;) {
+                this->request( "event/get", "subscriptionID=1", true, yield );
+            }
+        } );
+    }
+
+private:
+    string path( string const& op, string const& query )
+    {
+        ostringstream os;
+        os << "/json/" << op << '?' << query;
+        if ( token_ ) {
+            os << "&token=" << *token_;
+        }
+        return os.str();
+    }
+
     json request( string const& op, string const& query, bool needsToken, asio::yield_context yield )
     {
         if ( needsToken && !token_ ) {
-            token_ = request( "system/loginApplication", "loginToken=" + endpoint_.apikey(), false, yield ).at( "token" ).get< string >();
+            token_ = request( "system/loginApplication", "loginToken=" + endpoint_.apikey(), false, yield )
+                    .at( "token" ).get< string >();
         }
 
         logger.debug( "sending request ", op, " to dSS at ", endpoint_.host(), ":", endpoint_.port() );
@@ -81,24 +112,14 @@ public:
         if ( !message.at( "ok" )) {
             throw system_error( make_error_code( dsmq_errc::not_ok ), message.at( "message" ));
         }
-        return message.count( "result" ) > 0 ? message.at( "result" ) : json( true );
-    }
-
-private:
-    string path( string const& op, string const& query )
-    {
-        ostringstream os;
-        os << "/json/" << op << '?' << query;
-        if ( token_ ) {
-            os << "&token=" << *token_;
-        }
-        return os.str();
+        return message.count( "result" ) > 0 ? move( message.at( "result" ) ) : json( true );
     }
 
     asio::io_context& context_;
     ssl::context& sslContext_;
     Endpoint endpoint_;
     boost::optional< string > token_;
+    vector< string > events_;
 };
 
 Client::Client( asio::io_context& context, ssl::context& sslContext, Endpoint endpoint )
@@ -107,9 +128,14 @@ Client::Client( asio::io_context& context, ssl::context& sslContext, Endpoint en
 
 Client::~Client() = default;
 
-json Client::request( string const& op, string const& query, asio::yield_context yield )
+void Client::subscribe( string event )
 {
-    return impl_->request( op, query, true, yield );
+    impl_->subscribe( move( event ) );
+}
+
+void Client::eventLoop()
+{
+    impl_->eventLoop();
 }
 
 } // namespace dss

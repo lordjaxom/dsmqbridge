@@ -22,7 +22,8 @@ public:
     Client( boost::asio::io_context& context, boost::asio::ssl::context& sslContext, Endpoint endpoint );
     ~Client();
 
-    nlohmann::json request( std::string const& op, std::string const& query, boost::asio::yield_context yield );
+    void subscribe( std::string event );
+    void eventLoop();
 
 private:
     std::unique_ptr< Impl > impl_;
