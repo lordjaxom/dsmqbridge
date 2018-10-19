@@ -19,7 +19,12 @@ find_path(openssl_INCLUDE_DIRS openssl/ssl.h HINTS "${OPENSSL_ROOT}/include")
 find_library(openssl_ssl_LIBRARY ssl HINTS "${OPENSSL_ROOT}/lib")
 find_library(openssl_crypto_LIBRARY crypto HINTS "${OPENSSL_ROOT}/lib")
 set(openssl_LIBRARIES "${openssl_ssl_LIBRARY}" "${openssl_crypto_LIBRARY}")
-message("Libs: ${openssl_LIBRARIES}")
+
+find_path(mosquitto_INCLUDE_DIRS mosquitto.h HINTS "${MOSQUITTO_ROOT}/lib")
+find_library(mosquitto_LIBRARIES mosquitto HINTS "${MOSQUITTO_ROOT}/lib")
+if(WIN32)
+    set(mosquitto_DEFINITIONS -DLIBMOSQUITTO_STATIC)
+endif()
 
 add_executable(dS_MQTT_Bridge
         logging.cpp
@@ -29,15 +34,19 @@ add_executable(dS_MQTT_Bridge
         dss_client.hpp
         error.cpp
         error.hpp
-        dss_service.cpp
-        dss_service.hpp
-        dss_endpoint.cpp
-        dss_endpoint.hpp
+        dss_types.cpp
+        dss_types.hpp
         commandline.cpp
-        commandline.hpp)
-target_compile_definitions(dS_MQTT_Bridge PUBLIC ${Boost_DEFINITIONS})
-target_include_directories(dS_MQTT_Bridge PUBLIC ${Boost_INCLUDE_DIRS} ${json_INCLUDE_DIRS} ${utf8_INCLUDE_DIRS} ${openssl_INCLUDE_DIRS})
-target_link_libraries(dS_MQTT_Bridge ${openssl_LIBRARIES} ${Boost_LIBRARIES})
+        commandline.hpp
+        mqtt_client.cpp
+        mqtt_client.hpp
+        mqtt_types.cpp
+        mqtt_types.hpp
+        manager.cpp
+        manager.hpp)
+target_compile_definitions(dS_MQTT_Bridge PUBLIC ${Boost_DEFINITIONS} ${mosquitto_DEFINITIONS})
+target_include_directories(dS_MQTT_Bridge PUBLIC ${Boost_INCLUDE_DIRS} ${json_INCLUDE_DIRS} ${utf8_INCLUDE_DIRS} ${openssl_INCLUDE_DIRS} ${mosquitto_INCLUDE_DIRS})
+target_link_libraries(dS_MQTT_Bridge ${openssl_LIBRARIES} ${Boost_LIBRARIES} ${mosquitto_LIBRARIES})
 if(WIN32)
     target_link_libraries(dS_MQTT_Bridge ws2_32)
 else()
