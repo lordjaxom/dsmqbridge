@@ -1,19 +1,14 @@
 #include <fstream>
 #include <string>
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl/context.hpp>
 #include <nlohmann/json.hpp>
 
 #include "commandline.hpp"
-#include "dss_client.hpp"
 #include "logging.hpp"
+#include "manager.hpp"
 
 using namespace std;
 using namespace nlohmann;
-
-namespace asio = boost::asio;
-namespace ssl = asio::ssl;
 
 namespace dsmq {
 
@@ -28,7 +23,16 @@ json readProperties( string const& fileName )
 
     json props;
     ifs >> props;
-    return move( props );
+    return props;
+}
+
+map< int, string > buildZonesDss2Mqtt( json& zones )
+{
+    map< int, string > result;
+    for ( auto it = zones.begin() ; it != zones.end() ; ++it ) {
+        result.emplace( it.value(), it.key() );
+    }
+    return result;
 }
 
 void run( int argc, char* const argv[] )
@@ -43,13 +47,21 @@ void run( int argc, char* const argv[] )
 
         logger.info( "dS_MQTT_Bridge starting" );
 
-        auto props = readProperties( args.propertiesFile() );
+        Manager manager { readProperties( args.propertiesFile() ) };
+        manager.run();
 
-        asio::io_context context;
-        ssl::context sslContext { ssl::context::sslv23_client };
+        auto zonesDss2Mqtt = buildZonesDss2Mqtt( props.at( "zones" ) );
 
-        dss::Client dssClient { context, sslContext, props.at( "dSS" ) };
-        dssClient.subscribe( "callScene" );
+        dssClient.subscribe< dss::EventCallScene >( [&]( auto event ) {
+            logger.debug( "received callScene from zone ", event.zone(), ", group ", event.group(), ", scene ", event.scene() );
+
+            auto zone = zonesDss2Mqtt.find( event.zone() );
+            if ( zone == zonesDss2Mqtt.end() ) {
+                return;
+            }
+
+            logger.debug( "mapped zone to ", zone->second );
+        } );
         dssClient.eventLoop();
 
         context.run();

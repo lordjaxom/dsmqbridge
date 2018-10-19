@@ -1,0 +1,30 @@
+{
+	"dSS": {
+		"host": "192.168.178.29",
+		"port": "8080",
+		"apikey": "7b1c4f70d6c5113c3753f6a67d4a228cf65c64ace02af0f9e93aa6e58dbc5438"
+	},
+	"MQTT": {
+		"host": "192.168.178.28",
+		"port": 1883,
+		"clientId": "dS_MQTT_Bridge"
+	},
+	"scenes": {
+		"OFF": 0,
+		"SCENE1": 5,
+		"SCENE2": 17,
+		"SCENE3": 18,
+		"SCENE4": 19,
+		"SUN": 56,
+		"SLEEP": 68
+	},
+	"groups": {
+		"lightScene": 1,
+		"shadeScene": 2
+	},
+	"zones": {
+		"Buero": 3,
+		"Wohnzimmer": 6,
+		"ColinWZ": 10
+	}
+}
