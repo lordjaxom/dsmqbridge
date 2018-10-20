@@ -32,6 +32,8 @@ public:
 
     void eventLoop();
 
+    void callScene( unsigned zone, unsigned group, unsigned scene );
+
 private:
     void subscribe( char const* name, std::function< void ( nlohmann::json const& event ) >&& handler );
 

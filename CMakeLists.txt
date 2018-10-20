@@ -43,7 +43,7 @@ add_executable(dS_MQTT_Bridge
         mqtt_types.cpp
         mqtt_types.hpp
         manager.cpp
-        manager.hpp)
+        manager.hpp string.hpp)
 target_compile_definitions(dS_MQTT_Bridge PUBLIC ${Boost_DEFINITIONS} ${mosquitto_DEFINITIONS})
 target_include_directories(dS_MQTT_Bridge PUBLIC ${Boost_INCLUDE_DIRS} ${json_INCLUDE_DIRS} ${utf8_INCLUDE_DIRS} ${openssl_INCLUDE_DIRS} ${mosquitto_INCLUDE_DIRS})
 target_link_libraries(dS_MQTT_Bridge ${openssl_LIBRARIES} ${Boost_LIBRARIES} ${mosquitto_LIBRARIES})

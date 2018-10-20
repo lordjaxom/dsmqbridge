@@ -26,15 +26,6 @@ json readProperties( string const& fileName )
     return props;
 }
 
-map< int, string > buildZonesDss2Mqtt( json& zones )
-{
-    map< int, string > result;
-    for ( auto it = zones.begin() ; it != zones.end() ; ++it ) {
-        result.emplace( it.value(), it.key() );
-    }
-    return result;
-}
-
 void run( int argc, char* const argv[] )
 {
     try {
@@ -49,22 +40,6 @@ void run( int argc, char* const argv[] )
 
         Manager manager { readProperties( args.propertiesFile() ) };
         manager.run();
-
-        auto zonesDss2Mqtt = buildZonesDss2Mqtt( props.at( "zones" ) );
-
-        dssClient.subscribe< dss::EventCallScene >( [&]( auto event ) {
-            logger.debug( "received callScene from zone ", event.zone(), ", group ", event.group(), ", scene ", event.scene() );
-
-            auto zone = zonesDss2Mqtt.find( event.zone() );
-            if ( zone == zonesDss2Mqtt.end() ) {
-                return;
-            }
-
-            logger.debug( "mapped zone to ", zone->second );
-        } );
-        dssClient.eventLoop();
-
-        context.run();
     } catch ( exception const& e ) {
         logger.error( e.what() );
     }

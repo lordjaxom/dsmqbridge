@@ -8,6 +8,7 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core/buffers_to_string.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
 #include <boost/beast/core/ostream.hpp>
@@ -24,6 +25,7 @@
 #include "dss_client.hpp"
 #include "error.hpp"
 #include "logging.hpp"
+#include "string.hpp"
 
 using namespace std;
 using namespace nlohmann;
@@ -54,24 +56,41 @@ public:
 
     void eventLoop()
     {
-        asio::spawn( [this]( auto yield ) { this->eventLoop( yield ); } );
+        asio::spawn( [this]( auto yield ) {
+            try {
+                this->eventLoop( yield );
+                logger.debug( "exiting spawn for eventloop" );
+            } catch ( system_error const& e ) {
+                logger.error( endpoint_, "system_error in event loop: ", e.what() );
+            } catch ( boost::beast::system_error const& e ) {
+                logger.error( endpoint_, "beast::system_error in event loop: ", e.what() );
+            }
+        } );
+    }
+
+    void callScene( unsigned zone, unsigned group, unsigned scene )
+    {
+        asio::spawn( [this, zone, group, scene]( auto yield ) {
+            try {
+                this->request( "zone/callScene", str( "id=", zone, "&groupID=", group, "&sceneNumber=", scene ), true, yield );
+            } catch ( system_error const& e ) {
+                logger.error( endpoint_, "system_error in callScene: ", e.what() );
+            } catch ( boost::beast::system_error const& e ) {
+                logger.error( endpoint_, "beast::system_error in callScene: ", e.what() );
+            }
+        } );
     }
 
 private:
     string path( string const& op, string const& query )
     {
-        ostringstream os;
-        os << "/json/" << op << '?' << query;
-        if ( token_ ) {
-            os << "&token=" << *token_;
-        }
-        return os.str();
+        return str( "/json/", op, "?", query, token_ ? "&token=" : "", token_ ? *token_ : "" );
     }
 
     json request( string const& op, string const& query, bool needsToken, asio::yield_context yield )
     {
         if ( needsToken && !token_ ) {
-            token_ = request( "system/loginApplication", "loginToken=" + endpoint_.apikey(), false, yield )
+            token_ = request( "system/loginApplication", str( "loginToken=", endpoint_.apikey() ), false, yield )
                     .at( "token" ).get< string >();
         }
 
@@ -120,11 +139,23 @@ private:
 
         eventLoop_ = true;
         for ( auto const& eventHandler : eventHandlers_ ) {
-            request( "event/subscribe", "subscriptionID=1&name=" + eventHandler.first.to_string(), true, yield ); // FIXME
+            request( "event/subscribe", str( "subscriptionID=1&name=", eventHandler.first ), true, yield ); // FIXME
         }
+
+        asio::steady_timer timeout { context_ };
+        timeout.async_wait( []( error_code ec ) {
+            if ( ec == make_error_code( asio::error::operation_aborted )) {
+                return;
+            }
+            logger.error( "timeout waiting for events" );
+        } );
         while ( eventLoop_ ) {
+            logger.debug( "start of eventloop" );
+            timeout.expires_after( chrono::seconds( 31 ));
             processEvents( request( "event/get", "subscriptionID=1&timeout=30000", true, yield ).at( "events" ));
+            logger.debug( "end of eventloop" );
         }
+        logger.debug( "left eventloop" );
     }
 
     asio::io_context& context_;
@@ -148,6 +179,11 @@ void Client::subscribe( char const* name, std::function< void( nlohmann::json co
 void Client::eventLoop()
 {
     impl_->eventLoop();
+}
+
+void Client::callScene( unsigned zone, unsigned group, unsigned scene )
+{
+    impl_->callScene( zone, group, scene );
 }
 
 } // namespace dss
