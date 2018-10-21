@@ -115,7 +115,9 @@ private:
         asio::steady_timer timer { context_ };
         if ( timeout ) {
             timer.expires_after( *timeout );
-            timer.async_wait( [this, &socket = stream.next_layer()]( error_code ec ) { this->on_timeout( ec, socket ); } );
+            timer.async_wait( [this, &op, &socket = stream.next_layer()]( error_code ec ) {
+                this->on_timeout( op, socket, ec );
+            } );
         }
 
         asio::async_connect( stream.next_layer(), resolved, yield );
@@ -133,6 +135,7 @@ private:
         if ( response.result() != http::status::ok ) {
             throw system_error( make_error_code( dsmq_errc::server_error ));
         }
+        timer.cancel();
 
         logger.debug( endpoint_, "received response for ", op, ": ", boost::beast::buffers( response.body().data()));
 
@@ -158,16 +161,16 @@ private:
             request( "event/subscribe", str( "subscriptionID=1&name=", eventHandler.first ), true, nullopt, yield );
         }
         while ( eventLoop_ ) {
-            processEvents( request( "event/get", "subscriptionID=1&timeout=30000", true, chrono::seconds( 31 ), yield ).at( "events" ));
+            processEvents( request( "event/get", "subscriptionID=1&timeout=30000", true, chrono::seconds( 32 ), yield ).at( "events" ));
         }
     }
 
-    void on_timeout( error_code ec, tcp::socket& socket )
+    void on_timeout( string const& op, tcp::socket& socket, error_code ec )
     {
         if ( ec == make_error_code( asio::error::operation_aborted )) {
             return;
         }
-        logger.error( endpoint_, "timeout waiting for response, cancelling request" );
+        logger.error( endpoint_, "timeout waiting for response for ", op, ", cancelling request" );
         socket.cancel();
     }
 

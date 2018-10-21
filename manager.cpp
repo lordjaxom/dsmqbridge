@@ -67,7 +67,7 @@ class ZoneTable : MappingTable
                 dst.groupsByMq_.emplace( item.at( "MQ" ), item.at( "groups" ));
             }
             if ( item.count( "scenes" ) > 0 ) {
-                dst.sceneOverrides_.emplace( item.at( "MQ" ), item.at( "scenes" ) );
+                dst.sceneOverrides_.emplace( item.at( "MQ" ), item.at( "scenes" ));
             }
         }
     }
