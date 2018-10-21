@@ -1,6 +1,9 @@
+#include <chrono>
 #include <map>
 #include <sstream>
 #include <utility>
+#include <experimental/optional>
+#include <experimental/string_view>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/io_context.hpp>
@@ -18,8 +21,6 @@
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/version.hpp>
-#include <boost/optional.hpp>
-#include <boost/utility/string_view.hpp>
 #include <nlohmann/json.hpp>
 
 #include "dss_client.hpp"
@@ -28,6 +29,7 @@
 #include "string.hpp"
 
 using namespace std;
+using namespace std::experimental;
 using namespace nlohmann;
 
 namespace asio = boost::asio;
@@ -57,14 +59,23 @@ public:
     void eventLoop()
     {
         asio::spawn( [this]( auto yield ) {
-            try {
-                this->eventLoop( yield );
-                logger.debug( "exiting spawn for eventloop" );
-            } catch ( system_error const& e ) {
-                logger.error( endpoint_, "system_error in event loop: ", e.what() );
-            } catch ( boost::beast::system_error const& e ) {
-                logger.error( endpoint_, "beast::system_error in event loop: ", e.what() );
-            }
+            do {
+                error_code ec;
+                try {
+                    this->eventLoop( yield );
+                } catch ( system_error const &e ) {
+                    logger.error( endpoint_, "system_error in event loop: ", e.what());
+                    ec = e.code();
+                } catch ( boost::beast::system_error const &e ) {
+                    if ( e.code() != make_error_code( asio::error::operation_aborted )) {
+                        logger.error( endpoint_, "beast::system_error in event loop: ", e.what());
+                    }
+                    ec = e.code();
+                }
+                if ( ec ) {
+                    token_ = nullopt;
+                }
+            } while ( eventLoop_ );
         } );
     }
 
@@ -72,7 +83,7 @@ public:
     {
         asio::spawn( [this, zone, group, scene]( auto yield ) {
             try {
-                this->request( "zone/callScene", str( "id=", zone, "&groupID=", group, "&sceneNumber=", scene ), true, yield );
+                this->request( "zone/callScene", str( "id=", zone, "&groupID=", group, "&sceneNumber=", scene ), true, nullopt, yield );
             } catch ( system_error const& e ) {
                 logger.error( endpoint_, "system_error in callScene: ", e.what() );
             } catch ( boost::beast::system_error const& e ) {
@@ -87,10 +98,10 @@ private:
         return str( "/json/", op, "?", query, token_ ? "&token=" : "", token_ ? *token_ : "" );
     }
 
-    json request( string const& op, string const& query, bool needsToken, asio::yield_context yield )
+    json request( string const& op, string const& query, bool needsToken, optional< chrono::nanoseconds > timeout, asio::yield_context yield )
     {
         if ( needsToken && !token_ ) {
-            token_ = request( "system/loginApplication", str( "loginToken=", endpoint_.apikey() ), false, yield )
+            token_ = request( "system/loginApplication", str( "loginToken=", endpoint_.apikey() ), false, nullopt, yield )
                     .at( "token" ).get< string >();
         }
 
@@ -100,6 +111,13 @@ private:
         auto resolved { resolver.async_resolve( endpoint_.host(), endpoint_.port(), yield ) };
 
         ssl::stream< tcp::socket > stream { context_, sslContext_ };
+
+        asio::steady_timer timer { context_ };
+        if ( timeout ) {
+            timer.expires_after( *timeout );
+            timer.async_wait( [this, &socket = stream.next_layer()]( error_code ec ) { this->on_timeout( ec, socket ); } );
+        }
+
         asio::async_connect( stream.next_layer(), resolved, yield );
         stream.set_verify_mode( ssl::verify_none );
         stream.async_handshake( ssl::stream_base::client, yield );
@@ -135,34 +153,29 @@ private:
 
     void eventLoop( asio::yield_context yield )
     {
-        assert( !eventLoop_ );
-
         eventLoop_ = true;
         for ( auto const& eventHandler : eventHandlers_ ) {
-            request( "event/subscribe", str( "subscriptionID=1&name=", eventHandler.first ), true, yield ); // FIXME
+            request( "event/subscribe", str( "subscriptionID=1&name=", eventHandler.first ), true, nullopt, yield );
         }
-
-        asio::steady_timer timeout { context_ };
-        timeout.async_wait( []( error_code ec ) {
-            if ( ec == make_error_code( asio::error::operation_aborted )) {
-                return;
-            }
-            logger.error( "timeout waiting for events" );
-        } );
         while ( eventLoop_ ) {
-            logger.debug( "start of eventloop" );
-            timeout.expires_after( chrono::seconds( 31 ));
-            processEvents( request( "event/get", "subscriptionID=1&timeout=30000", true, yield ).at( "events" ));
-            logger.debug( "end of eventloop" );
+            processEvents( request( "event/get", "subscriptionID=1&timeout=30000", true, chrono::seconds( 31 ), yield ).at( "events" ));
         }
-        logger.debug( "left eventloop" );
+    }
+
+    void on_timeout( error_code ec, tcp::socket& socket )
+    {
+        if ( ec == make_error_code( asio::error::operation_aborted )) {
+            return;
+        }
+        logger.error( endpoint_, "timeout waiting for response, cancelling request" );
+        socket.cancel();
     }
 
     asio::io_context& context_;
     ssl::context& sslContext_;
     Endpoint endpoint_;
-    boost::optional< string > token_;
-    multimap< boost::string_view, function< void ( json const& event ) > > eventHandlers_;
+    optional< string > token_;
+    multimap< string_view, function< void ( json const& event ) > > eventHandlers_;
     bool eventLoop_ {};
 };
 
