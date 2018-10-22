@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <map>
 #include <unordered_map>
 #include <utility>
@@ -83,6 +84,17 @@ public:
         return it != groupsByMq_.end() ? it->second : groupTable.mqs();
     }
 
+    optional< string > groupDS2Mq( string const& zone, unsigned group, MappingTable const& groupTable )
+    {
+        if ( auto result = groupTable.ds2mq( group ) ) {
+            auto it = groupsByMq_.find( zone );
+            if ( it == groupsByMq_.end() || find( it->second.begin(), it->second.end(), *result ) != it->second.end() ) {
+                return result;
+            }
+        }
+        return nullopt;
+    }
+
     optional< unsigned > sceneMq2DS( string const& zone, string const& scene, MappingTable const& sceneTable )
     {
         auto it = sceneOverrides_.find( zone );
@@ -94,9 +106,9 @@ public:
         return sceneTable.mq2ds( scene );
     }
 
-    optional< string > sceneDS2Mq( unsigned zone, unsigned scene, MappingTable const& sceneTable )
+    optional< string > sceneDS2Mq( string const& zone, unsigned scene, MappingTable const& sceneTable )
     {
-        auto it = sceneOverrides_.find( *ds2mq( zone ) );
+        auto it = sceneOverrides_.find( zone );
         if ( it != sceneOverrides_.end()) {
             if ( auto result = it->second.ds2mq( scene )) {
                 return result;
@@ -169,13 +181,13 @@ private:
         logger.debug( "received dSS callScene from zone ", event.zone(), ", group ", event.group(), ", scene ", event.scene() );
 
         if ( auto targetZone = zoneTable_.ds2mq( event.zone())) {
-            if ( auto targetScene = zoneTable_.sceneDS2Mq( event.zone(), event.scene(), sceneTable_ )) {
+            if ( auto targetScene = zoneTable_.sceneDS2Mq( *targetZone, event.scene(), sceneTable_ )) {
                 if ( event.group() == 0 ) {
                     for ( auto const &targetGroup : zoneTable_.groupsByMq( *targetZone, groupTable_ )) {
                         knownDSScenes_[make_pair( event.zone(), *groupTable_.mq2ds( targetGroup ))] = event.scene();
                         forwardMq( *targetZone, targetGroup, *targetScene );
                     }
-                } else if ( auto targetGroup = groupTable_.ds2mq( event.group())) {
+                } else if ( auto targetGroup = zoneTable_.groupDS2Mq( *targetZone, event.group(), groupTable_ )) {
                     knownDSScenes_[make_pair( event.zone(), event.group())] = event.scene();
                     forwardMq( *targetZone, *targetGroup, *targetScene );
                 }
