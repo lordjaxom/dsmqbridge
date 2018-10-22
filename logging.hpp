@@ -65,7 +65,7 @@ public:
 	static void output( std::ostream& output );
 	static void output( char const* output );
 
-	explicit Logger( std::string tag );
+	explicit Logger( std::string tag ) noexcept;
 	Logger( Logger const& ) = delete;
 
 	template< typename ...Args >

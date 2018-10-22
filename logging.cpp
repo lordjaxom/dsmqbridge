@@ -93,7 +93,7 @@ void Logger::output( char const* output )
 	output_.reset( new ofstream( output, ios::out | ios::app ) );
 }
 
-Logger::Logger( string tag )
+Logger::Logger( string tag ) noexcept
 	: tag_( detail::buildTag< tagLength >( move( tag ) ) )
 {
 }
