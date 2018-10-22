@@ -78,13 +78,13 @@ public:
     using MappingTable::mq2ds;
     using MappingTable::ds2mq;
 
-    vector< string > const& groupsByMq( string const& zone, MappingTable const& groupTable )
+    vector< string > const& groupsByMq( string const& zone, MappingTable const& groupTable ) const
     {
         auto it = groupsByMq_.find( zone );
         return it != groupsByMq_.end() ? it->second : groupTable.mqs();
     }
 
-    optional< string > groupDS2Mq( string const& zone, unsigned group, MappingTable const& groupTable )
+    optional< string > groupDS2Mq( string const& zone, unsigned group, MappingTable const& groupTable ) const
     {
         if ( auto result = groupTable.ds2mq( group ) ) {
             auto it = groupsByMq_.find( zone );
@@ -95,7 +95,7 @@ public:
         return nullopt;
     }
 
-    optional< unsigned > sceneMq2DS( string const& zone, string const& scene, MappingTable const& sceneTable )
+    optional< unsigned > sceneMq2DS( string const& zone, string const& scene, MappingTable const& sceneTable ) const
     {
         auto it = sceneOverrides_.find( zone );
         if ( it != sceneOverrides_.end()) {
@@ -106,7 +106,7 @@ public:
         return sceneTable.mq2ds( scene );
     }
 
-    optional< string > sceneDS2Mq( string const& zone, unsigned scene, MappingTable const& sceneTable )
+    optional< string > sceneDS2Mq( string const& zone, unsigned scene, MappingTable const& sceneTable ) const
     {
         auto it = sceneOverrides_.find( zone );
         if ( it != sceneOverrides_.end()) {
@@ -150,7 +150,7 @@ public:
     }
 
 private:
-    string topicName( string const& zone, string const& group )
+    string topicName( string const& zone, string const& group ) const
     {
         return ( boost::format( topicTemplate_ ) % zone % group ).str();
     }

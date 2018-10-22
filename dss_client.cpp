@@ -93,7 +93,7 @@ public:
     }
 
 private:
-    string path( string const& op, string const& query )
+    string path( string const& op, string const& query ) const
     {
         return str( "/json/", op, "?", query, token_ ? "&token=" : "", token_ ? *token_ : "" );
     }
@@ -115,9 +115,7 @@ private:
         asio::steady_timer timer { context_ };
         if ( timeout ) {
             timer.expires_after( *timeout );
-            timer.async_wait( [this, &op, &socket = stream.next_layer()]( error_code ec ) {
-                this->on_timeout( op, socket, ec );
-            } );
+            timer.async_wait( [this, &op, &socket = stream.next_layer()]( error_code ec ) { this->on_timeout( op, socket, ec ); } );
         }
 
         asio::async_connect( stream.next_layer(), resolved, yield );
@@ -165,7 +163,7 @@ private:
         }
     }
 
-    void on_timeout( string const& op, tcp::socket& socket, error_code ec )
+    void on_timeout( string const& op, tcp::socket& socket, error_code ec ) const
     {
         if ( ec == make_error_code( asio::error::operation_aborted )) {
             return;
