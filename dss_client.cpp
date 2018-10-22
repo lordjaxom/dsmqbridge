@@ -102,7 +102,8 @@ private:
     {
         if ( needsToken && !token_ ) {
             token_ = request( "system/loginApplication", str( "loginToken=", endpoint_.apikey() ), false, nullopt, yield )
-                    .at( "token" ).get< string >();
+                    .at( "token" )
+                    .get< string >();
         }
 
         logger.debug( endpoint_, "sending request ", op );
@@ -133,7 +134,6 @@ private:
         if ( response.result() != http::status::ok ) {
             throw system_error( make_error_code( dsmq_errc::server_error ));
         }
-        timer.cancel();
 
         logger.debug( endpoint_, "received response for ", op, ": ", boost::beast::buffers( response.body().data()));
 
@@ -148,7 +148,7 @@ private:
     {
         for ( auto const& event : events ) {
             auto range = eventHandlers_.equal_range( event.at( "name" ).get< string >() );
-            for_each( range.first, range.second, [&event]( auto const& eventHandler ) { eventHandler.second( event ); } );
+            for_each( range.first, range.second, [&]( auto const& eventHandler ) { eventHandler.second( event ); } );
         }
     }
 
