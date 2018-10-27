@@ -1,5 +1,6 @@
 #include <algorithm>
-#include <map>
+#include <list>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -7,6 +8,7 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/format.hpp>
 #include <nlohmann/json.hpp>
 
@@ -46,10 +48,10 @@ public:
         return it != mq2ds_.end() ? optional< unsigned > { it->second } : nullopt;
     }
 
-    optional< string > ds2mq( unsigned val ) const
+    string const* ds2mq( unsigned val ) const
     {
         auto it = ds2mq_.find( val );
-        return it != ds2mq_.end() ? optional< string > { it->second } : nullopt;
+        return it != ds2mq_.end() ? &it->second : nullptr;
     }
 
 private:
@@ -84,7 +86,7 @@ public:
         return it != groupsByMq_.end() ? it->second : groupTable.mqs();
     }
 
-    optional< string > groupDS2Mq( string const& zone, unsigned group, MappingTable const& groupTable ) const
+    string const* groupDS2Mq( string const& zone, unsigned group, MappingTable const& groupTable ) const
     {
         if ( auto result = groupTable.ds2mq( group ) ) {
             auto it = groupsByMq_.find( zone );
@@ -92,7 +94,7 @@ public:
                 return result;
             }
         }
-        return nullopt;
+        return nullptr;
     }
 
     optional< unsigned > sceneMq2DS( string const& zone, string const& scene, MappingTable const& sceneTable ) const
@@ -106,7 +108,7 @@ public:
         return sceneTable.mq2ds( scene );
     }
 
-    optional< string > sceneDS2Mq( string const& zone, unsigned scene, MappingTable const& sceneTable ) const
+    string const* sceneDS2Mq( string const& zone, unsigned scene, MappingTable const& sceneTable ) const
     {
         auto it = sceneOverrides_.find( zone );
         if ( it != sceneOverrides_.end()) {
@@ -157,38 +159,50 @@ private:
 
     void forwardMq( string const &zone, string const &group, string const &scene )
     {
-        auto it = knownMqScenes_.find( make_pair< string const&, string const& >( zone, group ) );
-        if ( it == knownMqScenes_.end() || it->second != scene ) {
-            auto topic = topicName( zone, group );
-            logger.debug( "forwarding MQ scene ", scene, " to ", topic );
-            mqtt_.publish( move( topic ), scene );
-        }
+        auto topic = topicName( zone, group );
+        logger.debug( "forwarding MQ scene ", scene, " to ", topic );
+        mqtt_.publish( move( topic ), scene );
+
+        auto it = forwardedMqScenes_.emplace( piecewise_construct, forward_as_tuple( zone, group, scene ),
+                forward_as_tuple( context_, chrono::milliseconds( 500 )));
+        it->second.async_wait( [this, it]( auto ec ) {
+            if ( ec != make_error_code( asio::error::operation_aborted )) {
+                forwardedMqScenes_.erase( it );
+            }
+        } );
     }
 
     void forwardDS( unsigned zone, unsigned group, unsigned scene )
     {
-        auto key = make_pair( zone, group );
-        auto it = knownDSScenes_.find( key );
-        if ( it == knownDSScenes_.end() || it->second != scene ) {
-            logger.debug( "forwarding dS scene ", scene, " to zone ", zone, ", group ", group );
-            dss_.callScene( zone, group, scene );
-            knownDSScenes_[ key ] = scene;
-        }
+        logger.debug( "forwarding dS scene ", scene, " to zone ", zone, ", group ", group );
+        dss_.callScene( zone, group, scene );
+
+        auto it = forwardedDSScenes_.emplace( piecewise_construct, forward_as_tuple( zone, group, scene ),
+                forward_as_tuple( context_, chrono::seconds( 5 )));
+        it->second.async_wait( [this, it]( auto ec ) {
+            if ( ec != make_error_code( asio::error::operation_aborted )) {
+                forwardedDSScenes_.erase( it );
+            }
+        } );
     }
 
     void on_callScene( dss::EventCallScene&& event )
     {
         logger.debug( "received dSS callScene from zone ", event.zone(), ", group ", event.group(), ", scene ", event.scene() );
 
+        auto range = forwardedDSScenes_.equal_range( forward_as_tuple( event.zone(), event.group(), event.scene()));
+        if ( range.first != range.second ) {
+            forwardedDSScenes_.erase( range.first );
+            return;
+        }
+
         if ( auto targetZone = zoneTable_.ds2mq( event.zone())) {
             if ( auto targetScene = zoneTable_.sceneDS2Mq( *targetZone, event.scene(), sceneTable_ )) {
                 if ( event.group() == 0 ) {
                     for ( auto const &targetGroup : zoneTable_.groupsByMq( *targetZone, groupTable_ )) {
-                        knownDSScenes_[make_pair( event.zone(), *groupTable_.mq2ds( targetGroup ))] = event.scene();
                         forwardMq( *targetZone, targetGroup, *targetScene );
                     }
                 } else if ( auto targetGroup = zoneTable_.groupDS2Mq( *targetZone, event.group(), groupTable_ )) {
-                    knownDSScenes_[make_pair( event.zone(), event.group())] = event.scene();
                     forwardMq( *targetZone, *targetGroup, *targetScene );
                 }
             }
@@ -199,7 +213,11 @@ private:
     {
         logger.debug( "received MQ callScene from zone ", zone, ", group ", group, ", scene ", scene );
 
-        knownMqScenes_[make_pair( zone, group )] = scene;
+        auto range = forwardedMqScenes_.equal_range( forward_as_tuple( zone, group, scene ));
+        if ( range.first != range.second ) {
+            forwardedMqScenes_.erase( range.first );
+            return;
+        }
 
         auto targetZone = zoneTable_.mq2ds( zone );
         auto targetGroup = groupTable_.mq2ds( group );
@@ -215,8 +233,8 @@ private:
     MappingTable sceneTable_;
     mqtt::Client mqtt_;
     dss::Client dss_;
-    map< pair< unsigned, unsigned >, unsigned > knownDSScenes_;
-    map< pair< string, string >, string > knownMqScenes_;
+    multimap< tuple< unsigned, unsigned, unsigned >, asio::steady_timer > forwardedDSScenes_;
+    multimap< tuple< string, string, string >, asio::steady_timer > forwardedMqScenes_;
 };
 
 Manager::Manager( json const& props )
