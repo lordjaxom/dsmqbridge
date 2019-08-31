@@ -50,12 +50,11 @@ public:
 
     void publish( string&& topic, string&& payload )
     {
-        logger.debug( endpoint_, "registering publication for ", topic );
-
         Lock lock { mutex_ };
         if ( connected_ ) {
             sendPublish( topic, payload );
         } else {
+            logger.debug( endpoint_, "registering publication for ", topic );
             publications_.emplace_back( move( topic ), move( payload ) );
         }
     }
