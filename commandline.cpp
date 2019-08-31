@@ -4,6 +4,7 @@
 #include <getopt.h>
 
 #include "commandline.hpp"
+#include "string.hpp"
 
 using namespace std;
 
@@ -46,13 +47,13 @@ CommandLine::CommandLine( char* const *argv, int argc )
 	while ( ( optchar = getopt_long( argc, argv, ":hc:l:p:d", options, &optind ) ) != -1 ) {
 		switch ( optchar ) {
 			case ':':
-				throw runtime_error( string { "missing argument to --" } + cmdLineMapShortToLong( optopt ) );
+				throw CommandLineError( str( "missing argument to --", cmdLineMapShortToLong( optopt ) ) );
 
 			case '?':
-				throw runtime_error( string { "unknown option -" } + static_cast< char >( optopt ) );
+				throw CommandLineError( str( "unknown option -", static_cast< char >( optopt ) ) );
 
 			case 'h':
-				throw runtime_error( string { "Usage: " } + argv[ 0 ] + " [...]" );
+				throw CommandLineError( str( "Usage: ", argv[ 0 ], "[...]" ) );
 
 			case 'c':
 				propertiesFile_ = optarg;

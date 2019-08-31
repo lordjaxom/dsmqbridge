@@ -1,9 +1,16 @@
 #ifndef DS_MQTT_BRIDGE_COMMANDLINE_HPP
 #define DS_MQTT_BRIDGE_COMMANDLINE_HPP
 
+#include <stdexcept>
 #include <string>
 
 namespace dsmq {
+
+class CommandLineError : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
 
 class CommandLine
 {

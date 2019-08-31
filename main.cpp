@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iostream>
 #include <string>
 
 #include <nlohmann/json.hpp>
@@ -32,14 +33,16 @@ void run( int argc, char* const argv[] )
         Logger::threshold( Logger::Level::debug );
 
         CommandLine args { argv, argc };
-        if ( !args.logFile().empty() ) {
-            Logger::output( args.logFile().c_str() );
+        if ( !args.logFile().empty()) {
+            Logger::output( args.logFile().c_str());
         }
 
-        logger.info( "dS_MQTT_Bridge starting" );
+        logger.info( "dsmqbridge starting" );
 
-        Manager manager { readProperties( args.propertiesFile() ) };
+        Manager manager { readProperties( args.propertiesFile()) };
         manager.run();
+    } catch ( CommandLineError const& e ) {
+        std::cerr << e.what();
     } catch ( exception const& e ) {
         logger.error( e.what() );
     }
