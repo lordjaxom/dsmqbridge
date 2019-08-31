@@ -16,7 +16,7 @@ static char const* cmdLineMapShortToLong( int shortopt )
 		case 'h': return "help";
 		case 'c': return "config-file";
 		case 'l': return "log-file";
-		default: throw invalid_argument( "cmdLineMapShortToLong( " + to_string( shortopt ) + ")" );
+		default: throw invalid_argument( str( "cmdLineMapShortToLong( ", static_cast< char >( shortopt ), ")" ));
 	}
 }
 
