@@ -160,7 +160,7 @@ private:
     void forwardMq( string const &zone, string const &group, string const &scene )
     {
         auto topic = topicName( zone, group );
-        logger.debug( "forwarding MQ scene ", scene, " to ", topic );
+        logger.info( "forwarding MQTT scene ", scene, " to topic ", topic );
         mqtt_.publish( move( topic ), scene );
 
         auto it = forwardedMqScenes_.emplace( piecewise_construct, forward_as_tuple( zone, group, scene ),
@@ -174,7 +174,7 @@ private:
 
     void forwardDS( unsigned zone, unsigned group, unsigned scene )
     {
-        logger.debug( "forwarding dS scene ", scene, " to zone ", zone, ", group ", group );
+        logger.info( "forwarding dSS scene ", scene, " to zone ", zone, ", group ", group );
         dss_.callScene( zone, group, scene );
 
         auto it = forwardedDSScenes_.emplace( piecewise_construct, forward_as_tuple( zone, group, scene ),

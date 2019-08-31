@@ -100,7 +100,7 @@ private:
 
     void sendPublish( string const& topic, string const& payload )
     {
-        logger.info( endpoint_, "publishing message to ", topic );
+        logger.debug( endpoint_, "publishing message to ", topic );
 
         if ( int rc = mosquitto_publish( mosq_, nullptr, topic.c_str(), payload.length(), payload.data(), 0, false )) {
             logger.error( endpoint_, "error publishing to ", topic, ": ", mosquitto_strerror( rc ));
