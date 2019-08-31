@@ -1,1 +1,2 @@
-dS_MQTT_Bridge
+Bridge between DigitalSTROM dSS and MQTT
+

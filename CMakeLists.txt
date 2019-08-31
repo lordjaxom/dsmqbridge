@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(dS_MQTT_Bridge)
+project(dsmqbridge)
 
 cmake_host_system_information(RESULT HOSTNAME QUERY HOSTNAME)
 include("CMakeLocal.${HOSTNAME}.cmake")
@@ -31,7 +31,7 @@ if(WIN32)
     set(mosquitto_DEFINITIONS -DLIBMOSQUITTO_STATIC)
 endif()
 
-add_executable(dS_MQTT_Bridge
+add_executable(dsmqbridge
         logging.cpp
         logging.hpp
         main.cpp
@@ -49,11 +49,11 @@ add_executable(dS_MQTT_Bridge
         mqtt_types.hpp
         manager.cpp
         manager.hpp string.hpp)
-target_compile_definitions(dS_MQTT_Bridge PUBLIC ${Boost_DEFINITIONS} ${mosquitto_DEFINITIONS})
-target_include_directories(dS_MQTT_Bridge PUBLIC ${Boost_INCLUDE_DIRS} ${json_INCLUDE_DIRS} ${utf8_INCLUDE_DIRS} ${openssl_INCLUDE_DIRS} ${mosquitto_INCLUDE_DIRS})
-target_link_libraries(dS_MQTT_Bridge ${openssl_LIBRARIES} ${Boost_LIBRARIES} ${mosquitto_LIBRARIES})
+target_compile_definitions(dsmqbridge PUBLIC ${Boost_DEFINITIONS} ${mosquitto_DEFINITIONS})
+target_include_directories(dsmqbridge PUBLIC ${Boost_INCLUDE_DIRS} ${json_INCLUDE_DIRS} ${utf8_INCLUDE_DIRS} ${openssl_INCLUDE_DIRS} ${mosquitto_INCLUDE_DIRS})
+target_link_libraries(dsmqbridge ${openssl_LIBRARIES} ${Boost_LIBRARIES} ${mosquitto_LIBRARIES})
 if(WIN32)
-    target_link_libraries(dS_MQTT_Bridge ws2_32)
+    target_link_libraries(dsmqbridge ws2_32)
 else()
-    target_link_libraries(dS_MQTT_Bridge pthread)
+    target_link_libraries(dsmqbridge pthread)
 endif()
