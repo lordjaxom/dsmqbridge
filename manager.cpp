@@ -211,7 +211,11 @@ private:
 
         if ( auto targetZone = zoneTable_.ds2mq( event.zone())) {
             if ( auto targetScene = zoneTable_.sceneDS2Mq( *targetZone, event.scene(), sceneTable_ )) {
-                if ( auto targetGroup = zoneTable_.groupDS2Mq( *targetZone, event.group(), groupTable_ )) {
+                if ( event.group() == 0 ) {
+                    for ( auto const &targetGroup : zoneTable_.groupsByMq( *targetZone, groupTable_ )) {
+                        forwardMq( *targetZone, targetGroup, *targetScene );
+                    }
+                } else if ( auto targetGroup = zoneTable_.groupDS2Mq( *targetZone, event.group(), groupTable_ )) {
                     forwardMq( *targetZone, *targetGroup, *targetScene );
                 }
             }
