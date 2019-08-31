@@ -2,7 +2,6 @@
 #define DS_MQTT_BRIDGE_LOGGING_HPP
 
 #include <cstddef>
-#include <memory>
 #include <mutex>
 #include <ostream>
 #include <string>
@@ -11,6 +10,11 @@
 namespace dsmq {
 
 namespace detail {
+
+struct LogOutputDeleter
+{
+    void operator()( std::ostream const* p );
+};
 
 std::ostream& logTimestamp( std::ostream &os );
 std::ostream& logPid( std::ostream &os );
@@ -37,6 +41,13 @@ void logMessage( std::ostream& os, std::string const &tag, char const *level, Ar
 
 class Logger
 {
+	friend struct detail::LogOutputDeleter;
+
+	using OutputPtr = std::unique_ptr< std::ostream, detail::LogOutputDeleter >;
+	using Lock = std::lock_guard< std::recursive_mutex >;
+
+	static constexpr std::size_t tagLength = 15;
+
 public:
 	struct Level
 	{
@@ -50,22 +61,20 @@ public:
 	};
 
 private:
-	using Lock = std::lock_guard< std::recursive_mutex >;
-
-	static constexpr std::size_t tagLength = 15;
-
 	static bool is( Level const& level );
 
 	static Level const* level_;
-	static std::shared_ptr< std::ostream > output_;
+	static char const* outputFile_;
+	static OutputPtr output_;
 	static std::recursive_mutex mutex_;
 
 public:
 	static void threshold( Level const& level );
 	static void output( std::ostream& output );
-	static void output( char const* output );
+	static void output( char const* outputFile );
+	static void reopen();
 
-	explicit Logger( std::string tag ) noexcept;
+	explicit Logger( char const* tag ) noexcept;
 	Logger( Logger const& ) = delete;
 
 	template< typename ...Args >
@@ -96,12 +105,16 @@ private:
 	template< typename ...Args >
 	void log( Level const& level, Args&&... args )
 	{
-		if ( is( level ) ) {
+		if ( is( level )) {
             Lock lock( mutex_ );
+            initialize();
 			detail::logMessage( *output_, tag_, level.name, std::forward< Args >( args )... );
 		}
 	}
 
+	void initialize();
+
+	char const* rawTag_;
 	std::string tag_;
 };
 

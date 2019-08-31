@@ -1,3 +1,4 @@
+#include <csignal>
 #include <algorithm>
 #include <list>
 #include <tuple>
@@ -7,6 +8,7 @@
 #include <experimental/optional>
 
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/format.hpp>
@@ -132,9 +134,20 @@ public:
             , zoneTable_ { props.at( "zones" ) }
             , groupTable_ { props.at( "groups" ) }
             , sceneTable_ { props.at( "scenes" ) }
+            , reloadSignals_ { context_ }
             , mqtt_ { context_, props.at( "MQTT" ) }
             , dss_ { context_, sslContext_, props.at( "dSS" ) }
     {
+#if !defined( WIN32 )
+        reloadSignals_.add( SIGHUP );
+#endif
+
+        reloadSignals_.async_wait( [this]( auto ec, int signal ) {
+            if ( ec != make_error_code( asio::error::operation_aborted )) {
+                Logger::reopen();
+            }
+        } );
+
         for ( auto const& zone : zoneTable_.mqs() ) {
             for ( auto const& group : zoneTable_.groupsByMq( zone, groupTable_ ) ) {
                 mqtt_.subscribe(
@@ -221,12 +234,13 @@ private:
         forwardDS( *targetZone, *targetGroup, *targetScene );
     }
 
-    asio::io_context context_;
-    ssl::context sslContext_ { ssl::context::sslv23_client };
     string topicTemplate_;
     ZoneTable zoneTable_;
     MappingTable groupTable_;
     MappingTable sceneTable_;
+    asio::io_context context_;
+    ssl::context sslContext_ { ssl::context::sslv23_client };
+    asio::signal_set reloadSignals_;
     mqtt::Client mqtt_;
     dss::Client dss_;
     multimap< tuple< unsigned, unsigned, unsigned >, asio::steady_timer > forwardedDSScenes_;

@@ -16,7 +16,16 @@ using namespace std;
 
 namespace dsmq {
 
+static Logger logger( "logging" );
+
 namespace detail {
+
+void LogOutputDeleter::operator()( std::ostream const* p )
+{
+    if ( Logger::outputFile_ ) {
+        delete p;
+    }
+}
 
 ostream& logTimestamp( ostream &os )
 {
@@ -42,8 +51,9 @@ ostream& logPid( ostream& os )
 }
 
 template< size_t L >
-string buildTag( string&& tag )
+string logBuildTag( char const* rawTag )
 {
+	string tag = rawTag;
 	if ( tag.length() == L ) {
 		return move( tag );
 	}
@@ -70,7 +80,8 @@ Logger::Level const Logger::Level::warning { "WARN ", 1 };
 Logger::Level const Logger::Level::error   { "ERROR", 0 };
 
 Logger::Level const* Logger::level_ = &Logger::Level::warning;
-shared_ptr< ostream > Logger::output_( &cerr, []( ostream const* ) {} );
+char const* Logger::outputFile_;
+Logger::OutputPtr Logger::output_;
 recursive_mutex Logger::mutex_;
 
 bool Logger::is( Level const& level )
@@ -85,17 +96,40 @@ void Logger::threshold( Level const& level )
 
 void Logger::output( ostream& output )
 {
-	output_.reset( &output, []( ostream const* ) {} );
+	output_.reset( &output );
+	outputFile_ = nullptr;
 }
 
-void Logger::output( char const* output )
+void Logger::output( char const* outputFile )
 {
-	output_.reset( new ofstream( output, ios::out | ios::app ) );
+	output_.reset( new ofstream( outputFile, ios::out | ios::app ));
+	outputFile_ = outputFile;
 }
 
-Logger::Logger( string tag ) noexcept
-	: tag_( detail::buildTag< tagLength >( move( tag ) ) )
+void Logger::reopen()
 {
+	if ( !outputFile_ ) {
+		return;
+	}
+
+	output( outputFile_ );
+
+	logger.info( "reopening logfile" );
+}
+
+Logger::Logger( char const* tag ) noexcept
+	: rawTag_( tag )
+{
+}
+
+void Logger::initialize()
+{
+	if ( !output_ ) {
+		output( cerr );
+	}
+	if ( tag_.empty()) {
+		tag_ = detail::logBuildTag< tagLength >( rawTag_ );
+	}
 }
 
 } // namespace dsmq
