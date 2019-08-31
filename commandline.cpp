@@ -49,7 +49,10 @@ CommandLine::CommandLine( char* const *argv, int argc )
 				throw CommandLineError( str( "unknown option -", static_cast< char >( optopt ) ) );
 
 			case 'h':
-				throw CommandLineError( str( "Usage: ", argv[ 0 ], "[...]" ) );
+				throw CommandLineError( str( "Usage: ", argv[ 0 ], " [OPTION]...\n",
+						"  -c, --config-file=FILE      load configuration from FILE\n",
+						"  -l, --log-file=FILE         write logs to FILE instead of standard error\n",
+						"  -h, --help                  show this help and exit" ));
 
 			case 'c':
 				propertiesFile_ = optarg;
