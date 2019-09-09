@@ -141,12 +141,7 @@ public:
 #if !defined( WIN32 )
         reloadSignals_.add( SIGHUP );
 #endif
-
-        reloadSignals_.async_wait( [this]( auto ec, int signal ) {
-            if ( ec != make_error_code( asio::error::operation_aborted )) {
-                Logger::reopen();
-            }
-        } );
+        subscribeReloadSignals();
 
         for ( auto const& zone : zoneTable_.mqs() ) {
             for ( auto const& group : zoneTable_.groupsByMq( zone, groupTable_ ) ) {
@@ -165,6 +160,16 @@ public:
     }
 
 private:
+    void subscribeReloadSignals()
+    {
+        reloadSignals_.async_wait( [this]( auto ec, int signal ) {
+            if ( ec != make_error_code( asio::error::operation_aborted )) {
+                Logger::reopen();
+                this->subscribeReloadSignals();
+            }
+        } );
+    }
+
     string topicName( string const& zone, string const& group ) const
     {
         return ( boost::format( topicTemplate_ ) % zone % group ).str();
